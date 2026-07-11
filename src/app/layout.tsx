@@ -13,7 +13,7 @@ import { CurrencyProvider } from "@/lib/currency-context";
 import { CatalogProvider } from "@/lib/catalog-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { getCachedCatalog } from "@/lib/data/catalog";
-import { getAuthProfile, getAuthUser } from "@/lib/auth";
+import { getAuthProfile, getAuthUser } from "@/lib/auth-server";
 import "./globals.css";
 
 const playfair = Playfair_Display({
