@@ -1,0 +1,22 @@
+---
+description: Client GitHub remote and identity rules for Tressé Hair
+alwaysApply: true
+---
+
+# Tressé Hair — GitHub & identity
+
+## Remote (always use this)
+- Repo: https://github.com/tejumakanju/Tress-Hair
+- Remote name: `origin`
+- Default branch: `main`
+
+When committing or pushing for this project, use that repo only.
+
+## No Nova Rides association
+- Never use the `novarides` / Nova Rides Git name, email, or GitHub account for commits or pushes in this project.
+- Do not put Nova Rides branding, links, emails, or usernames anywhere in the codebase or git history for this repo.
+- Prefer commit author identity for this client repo as: **tejumakanju** (project owner). Do not use `novarides`, Nova Rides, Dieko, or Bowo as git author/committer on this repo.
+- Do not fall back to `novaridess@gmail.com`.
+
+## Secrets
+- Never commit `.env.local` or real Flutterwave / Supabase keys. Only `.env.example` is allowed.
