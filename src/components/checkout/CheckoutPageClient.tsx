@@ -6,6 +6,7 @@ import { CreditCard, Truck, Lock, ShieldCheck } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useCurrency, useFormatPrice } from "@/lib/currency-context";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/states";
 import {
   makeTxRef,
   savePendingCheckout,
@@ -23,6 +24,40 @@ import {
   shippingCostUsd,
   suggestedCourier,
 } from "@/lib/shipping";
+import {
+  getUserError,
+  paymentInitFailureCode,
+  resolveApiErrorCode,
+  UserErrorCode,
+} from "@/lib/user-errors";
+import { useAuth } from "@/lib/auth-context";
+import Link from "next/link";
+import { FormField, FormSelect } from "@/components/ui/FormField";
+import {
+  isValidEmail,
+  isValidPhone,
+  normalizeEmail,
+  normalizePhone,
+  requiredMessage,
+} from "@/lib/form-utils";
+import { cn } from "@/lib/utils";
+
+const GIFT_MAX = 200;
+const NOTES_MAX = 500;
+
+type FieldErrors = Partial<
+  Record<
+    | "email"
+    | "firstName"
+    | "lastName"
+    | "phone"
+    | "address"
+    | "city"
+    | "state"
+    | "zip",
+    string | null
+  >
+>;
 
 function chargeCurrencyFor(display: string): FlwCurrency {
   const upper = display.toUpperCase();
@@ -36,9 +71,12 @@ export function CheckoutPageClient() {
   const { items, subtotal, couponDiscount, couponCode } = useCart();
   const formatPrice = useFormatPrice();
   const { currency, rate } = useCurrency();
+  const { user, profile, ready: authReady } = useAuth();
   const [isGuest, setIsGuest] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [form, setForm] = useState({
     email: "",
@@ -54,6 +92,21 @@ export function CheckoutPageClient() {
     giftMessage: "",
     orderNotes: "",
   });
+
+  useEffect(() => {
+    if (!authReady || prefilled) return;
+    if (user) {
+      setIsGuest(false);
+      setForm((f) => ({
+        ...f,
+        email: user.email || f.email,
+        firstName: profile?.firstName || f.firstName,
+        lastName: profile?.lastName || f.lastName,
+        phone: profile?.phone || f.phone,
+      }));
+      setPrefilled(true);
+    }
+  }, [authReady, user, profile, prefilled]);
 
   const methods = useMemo(
     () => availableShippingMethods(form.country, form.city, form.state),
@@ -80,27 +133,131 @@ export function CheckoutPageClient() {
       : (FALLBACK_RATES[payCurrency] ?? FALLBACK_RATES.NGN);
   const totalLocal = totalUsd * payRate;
 
-  const update = (field: string, value: string) =>
+  const update = (field: keyof typeof form, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
+    setFieldErrors((e) => ({ ...e, [field]: null }));
+  };
+
+  const setFieldError = (field: keyof FieldErrors, message: string | null) => {
+    setFieldErrors((e) => ({ ...e, [field]: message }));
+  };
+
+  const validateEmailField = () => {
+    if (!form.email.trim()) {
+      setFieldError("email", requiredMessage());
+      return false;
+    }
+    if (!isValidEmail(form.email)) {
+      setFieldError(
+        "email",
+        getUserError(UserErrorCode.VALIDATION_EMAIL).inline
+      );
+      return false;
+    }
+    setFieldError("email", null);
+    return true;
+  };
+
+  const validatePhoneField = () => {
+    if (!form.phone.trim()) {
+      setFieldError("phone", requiredMessage());
+      return false;
+    }
+    if (!isValidPhone(form.phone)) {
+      setFieldError(
+        "phone",
+        getUserError(UserErrorCode.VALIDATION_PHONE).inline
+      );
+      return false;
+    }
+    setFieldError("phone", null);
+    return true;
+  };
+
+  const validateRequired = (field: keyof FieldErrors, value: string) => {
+    if (!value.trim()) {
+      setFieldError(field, requiredMessage());
+      return false;
+    }
+    setFieldError(field, null);
+    return true;
+  };
+
+  const contactValid =
+    isValidEmail(form.email) &&
+    form.firstName.trim().length > 0 &&
+    form.lastName.trim().length > 0 &&
+    isValidPhone(form.phone);
+
+  const shippingValid =
+    form.address.trim().length > 0 &&
+    form.city.trim().length > 0 &&
+    form.state.trim().length > 0 &&
+    form.zip.trim().length > 0 &&
+    form.country.trim().length > 0 &&
+    Boolean(form.shippingMethod);
+
+  const formValid = contactValid && shippingValid;
+  const canPay = formValid && !processing;
+
+  const missingHint = useMemo(() => {
+    if (canPay || processing) return null;
+    const missing: string[] = [];
+    if (!isValidEmail(form.email)) missing.push("a valid email");
+    if (!form.firstName.trim() || !form.lastName.trim())
+      missing.push("your name");
+    if (!isValidPhone(form.phone)) missing.push("a phone number");
+    if (!shippingValid) missing.push("shipping details");
+    if (missing.length === 0) return null;
+    return `Add ${missing.join(", ").replace(/, ([^,]*)$/, " and $1")} to continue.`;
+  }, [canPay, processing, form, shippingValid]);
 
   if (items.length === 0) {
+    const empty = getUserError(UserErrorCode.CART_EMPTY);
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <h1 className="font-serif text-3xl tracking-[0.15em] uppercase mb-4">
-          Checkout
-        </h1>
-        <p className="text-muted mb-8">Your cart is empty.</p>
-        <Button href="/shop" variant="primary" size="lg">
-          Shop Now
-        </Button>
-      </div>
+      <EmptyState
+        title={empty.title}
+        description={empty.description}
+        action={
+          empty.action?.href
+            ? { label: empty.action.label, href: empty.action.href }
+            : undefined
+        }
+      />
     );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const emailOk = validateEmailField();
+    const phoneOk = validatePhoneField();
+    const firstOk = validateRequired("firstName", form.firstName);
+    const lastOk = validateRequired("lastName", form.lastName);
+    const addressOk = validateRequired("address", form.address);
+    const cityOk = validateRequired("city", form.city);
+    const stateOk = validateRequired("state", form.state);
+    const zipOk = validateRequired("zip", form.zip);
+
+    if (
+      !emailOk ||
+      !phoneOk ||
+      !firstOk ||
+      !lastOk ||
+      !addressOk ||
+      !cityOk ||
+      !stateOk ||
+      !zipOk ||
+      !formValid
+    ) {
+      return;
+    }
+
     setProcessing(true);
+
+    const cleanEmail = normalizeEmail(form.email);
+    const cleanPhone = normalizePhone(form.phone);
 
     const txRef = makeTxRef();
     const pending = {
@@ -109,16 +266,16 @@ export function CheckoutPageClient() {
       currency: payCurrency,
       amountUsd: totalUsd,
       customer: {
-        email: form.email,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phone: form.phone,
+        email: cleanEmail,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: cleanPhone,
       },
       shipping: {
-        address: form.address,
-        city: form.city,
-        state: form.state,
-        zip: form.zip,
+        address: form.address.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        zip: form.zip.trim(),
         country: form.country,
         method: form.shippingMethod,
       },
@@ -128,7 +285,9 @@ export function CheckoutPageClient() {
       tax,
       discount: couponDiscount,
       total: totalUsd,
-      notes: [form.giftMessage, form.orderNotes].filter(Boolean).join("\n") || undefined,
+      notes:
+        [form.giftMessage, form.orderNotes].filter(Boolean).join("\n") ||
+        undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -143,9 +302,9 @@ export function CheckoutPageClient() {
           amountUsd: totalUsd,
           amount: totalLocal,
           currency: payCurrency,
-          email: form.email,
+          email: cleanEmail,
           name: `${form.firstName} ${form.lastName}`.trim(),
-          phone: form.phone || undefined,
+          phone: cleanPhone || undefined,
           meta: {
             country: form.country,
             shipping_method: form.shippingMethod,
@@ -154,148 +313,241 @@ export function CheckoutPageClient() {
         }),
       });
 
-      const data = (await res.json()) as { link?: string; error?: string };
+      const data = (await res.json()) as {
+        link?: string;
+        code?: string;
+        error?: string;
+      };
 
       if (!res.ok || !data.link) {
-        throw new Error(data.error || "Could not start Flutterwave checkout");
+        const code = resolveApiErrorCode(
+          data,
+          res.status === 400
+            ? UserErrorCode.PAYMENT_INVALID_REQUEST
+            : UserErrorCode.PAYMENT_INIT_FAILED
+        );
+        setProcessing(false);
+        setError(getUserError(code).inline);
+        return;
       }
 
       window.location.href = data.link;
     } catch (err) {
       setProcessing(false);
-      setError(err instanceof Error ? err.message : "Payment failed to start");
+      setError(getUserError(paymentInitFailureCode(err)).inline);
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12">
-      <h1 className="font-serif text-3xl tracking-[0.15em] uppercase mb-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-12 pb-28 lg:pb-12">
+      <h1 className="font-serif text-2xl sm:text-3xl tracking-[0.12em] sm:tracking-[0.15em] uppercase mb-6 md:mb-8">
         Checkout
       </h1>
 
-      <div className="flex gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4 mb-6 md:mb-8">
         <button
           type="button"
           onClick={() => setIsGuest(true)}
-          className={`text-xs tracking-[0.15em] uppercase px-4 py-2 border ${isGuest ? "border-noir bg-noir text-white" : "border-border"}`}
+          className={`min-h-11 text-[10px] sm:text-xs tracking-[0.12em] sm:tracking-[0.15em] uppercase px-3 sm:px-4 py-2.5 border ${isGuest ? "border-noir bg-noir text-white" : "border-border"}`}
         >
           Guest Checkout
         </button>
         <button
           type="button"
           onClick={() => setIsGuest(false)}
-          className={`text-xs tracking-[0.15em] uppercase px-4 py-2 border ${!isGuest ? "border-noir bg-noir text-white" : "border-border"}`}
+          className={`min-h-11 text-[10px] sm:text-xs tracking-[0.12em] sm:tracking-[0.15em] uppercase px-3 sm:px-4 py-2.5 border ${!isGuest ? "border-noir bg-noir text-white" : "border-border"}`}
         >
           Account Checkout
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <section className="bg-white border border-border p-6">
+      {!isGuest && authReady && !user ? (
+        <div className="mb-8 border border-border bg-white p-6 text-center">
+          <p className="text-sm text-muted mb-4 leading-relaxed">
+            Sign in or create an account to prefill your details. You can still
+            checkout as a guest.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              href="/account/login?next=/checkout"
+              variant="primary"
+              size="md"
+            >
+              Sign in
+            </Button>
+            <Button
+              href="/account/signup?next=/checkout"
+              variant="outline"
+              size="md"
+            >
+              Create account
+            </Button>
+            <button
+              type="button"
+              onClick={() => setIsGuest(true)}
+              className="text-xs tracking-[0.15em] uppercase text-muted hover:text-noir py-2"
+            >
+              Continue as guest
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {!isGuest && user ? (
+        <p className="text-xs text-muted mb-6">
+          Signed in as {user.email}.{" "}
+          <Link href="/account" className="underline underline-offset-2">
+            Manage account
+          </Link>
+        </p>
+      ) : null}
+
+      {(isGuest || user) && (
+      <>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="lg:col-span-2 space-y-6 md:space-y-8">
+          <section className="bg-white border border-border p-4 sm:p-6">
             <h2 className="text-xs tracking-[0.15em] uppercase mb-4">
               Contact Information
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input
+              <FormField
+                id="checkout-email"
+                label="Email"
                 required
                 type="email"
-                placeholder="Email"
                 value={form.email}
-                onChange={(e) => update("email", e.target.value)}
-                className="col-span-full px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                onChange={(v) => update("email", v)}
+                onBlur={validateEmailField}
+                autoComplete="email"
+                error={fieldErrors.email}
+                className="col-span-full"
               />
-              <input
+              <FormField
+                id="checkout-first-name"
+                label="First name"
                 required
-                type="text"
-                placeholder="First name"
                 value={form.firstName}
-                onChange={(e) => update("firstName", e.target.value)}
-                className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                onChange={(v) => update("firstName", v)}
+                onBlur={() => validateRequired("firstName", form.firstName)}
+                autoComplete="given-name"
+                error={fieldErrors.firstName}
               />
-              <input
+              <FormField
+                id="checkout-last-name"
+                label="Last name"
                 required
-                type="text"
-                placeholder="Last name"
                 value={form.lastName}
-                onChange={(e) => update("lastName", e.target.value)}
-                className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                onChange={(v) => update("lastName", v)}
+                onBlur={() => validateRequired("lastName", form.lastName)}
+                autoComplete="family-name"
+                error={fieldErrors.lastName}
               />
-              <input
+              <FormField
+                id="checkout-phone"
+                label="Phone"
                 required
                 type="tel"
-                placeholder="Phone (WhatsApp preferred)"
                 value={form.phone}
-                onChange={(e) => update("phone", e.target.value)}
-                className="col-span-full px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                onChange={(v) => update("phone", v)}
+                onBlur={() => {
+                  const normalized = normalizePhone(form.phone);
+                  update("phone", normalized);
+                  if (!normalized) {
+                    setFieldError("phone", requiredMessage());
+                  } else if (!isValidPhone(normalized)) {
+                    setFieldError(
+                      "phone",
+                      getUserError(UserErrorCode.VALIDATION_PHONE).inline
+                    );
+                  } else {
+                    setFieldError("phone", null);
+                  }
+                }}
+                autoComplete="tel"
+                hint="WhatsApp preferred — any format is fine."
+                error={fieldErrors.phone}
+                className="col-span-full"
               />
             </div>
           </section>
 
-          <section className="bg-white border border-border p-6">
+          <section className="bg-white border border-border p-4 sm:p-6">
             <h2 className="text-xs tracking-[0.15em] uppercase mb-4 flex items-center gap-2">
               <Truck className="w-4 h-4" /> Shipping Address
             </h2>
             <div className="space-y-4">
-              <input
+              <FormField
+                id="checkout-address"
+                label="Address"
                 required
-                type="text"
-                placeholder="Address"
                 value={form.address}
-                onChange={(e) => update("address", e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                onChange={(v) => update("address", v)}
+                onBlur={() => validateRequired("address", form.address)}
+                autoComplete="street-address"
+                error={fieldErrors.address}
               />
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <input
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField
+                  id="checkout-city"
+                  label="City"
                   required
-                  type="text"
-                  placeholder="City"
                   value={form.city}
-                  onChange={(e) => update("city", e.target.value)}
-                  className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                  onChange={(v) => update("city", v)}
+                  onBlur={() => validateRequired("city", form.city)}
+                  autoComplete="address-level2"
+                  error={fieldErrors.city}
                 />
                 {isNigeria(form.country) ? (
-                  <select
+                  <FormSelect
+                    id="checkout-state"
+                    label="State"
                     required
                     value={form.state}
-                    onChange={(e) => update("state", e.target.value)}
-                    className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                    onChange={(v) => update("state", v)}
+                    onBlur={() => validateRequired("state", form.state)}
+                    error={fieldErrors.state}
                   >
                     {NIGERIAN_STATES.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
                     ))}
-                  </select>
+                  </FormSelect>
                 ) : (
-                  <input
+                  <FormField
+                    id="checkout-state"
+                    label="State / Province"
                     required
-                    type="text"
-                    placeholder="State / Province"
                     value={form.state}
-                    onChange={(e) => update("state", e.target.value)}
-                    className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                    onChange={(v) => update("state", v)}
+                    onBlur={() => validateRequired("state", form.state)}
+                    autoComplete="address-level1"
+                    error={fieldErrors.state}
                   />
                 )}
-                <input
+                <FormField
+                  id="checkout-zip"
+                  label={isNigeria(form.country) ? "LGA / ZIP" : "ZIP"}
                   required
-                  type="text"
-                  placeholder={isNigeria(form.country) ? "LGA / ZIP" : "ZIP"}
                   value={form.zip}
-                  onChange={(e) => update("zip", e.target.value)}
-                  className="px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
+                  onChange={(v) => update("zip", v)}
+                  onBlur={() => validateRequired("zip", form.zip)}
+                  autoComplete="postal-code"
+                  error={fieldErrors.zip}
                 />
               </div>
-              <select
+              <FormSelect
+                id="checkout-country"
+                label="Country"
+                required
                 value={form.country}
-                onChange={(e) => {
-                  const country = e.target.value;
+                onChange={(country) => {
                   update("country", country);
                   if (isNigeria(country) && !form.state) {
                     update("state", "Lagos");
                   }
                 }}
-                className="w-full px-3 py-2.5 text-sm border border-border focus:outline-none focus:border-champagne"
               >
                 <option>Nigeria</option>
                 <option>United States</option>
@@ -304,18 +556,18 @@ export function CheckoutPageClient() {
                 <option>Ghana</option>
                 <option>Kenya</option>
                 <option>South Africa</option>
-              </select>
+              </FormSelect>
             </div>
             <div className="mt-6 space-y-3">
               <p className="text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
-                Delivery method
+                Delivery method <span className="text-crimson">*</span>
               </p>
               {methods.map((method) => {
                 const cost = shippingCostUsd(method.id);
                 return (
                   <label
                     key={method.id}
-                    className="flex items-center gap-3 p-3 border border-border cursor-pointer hover:border-champagne"
+                    className="flex items-center gap-3 p-3.5 min-h-[3.25rem] border border-border cursor-pointer hover:border-champagne active:bg-cream/50"
                   >
                     <input
                       type="radio"
@@ -340,7 +592,7 @@ export function CheckoutPageClient() {
             </div>
           </section>
 
-          <section className="bg-white border border-border p-6">
+          <section className="bg-white border border-border p-4 sm:p-6">
             <h2 className="text-xs tracking-[0.15em] uppercase mb-4 flex items-center gap-2">
               <CreditCard className="w-4 h-4" /> Payment
             </h2>
@@ -359,26 +611,35 @@ export function CheckoutPageClient() {
             </ul>
           </section>
 
-          <section className="bg-white border border-border p-6">
+          <section className="bg-white border border-border p-4 sm:p-6">
             <h2 className="text-xs tracking-[0.15em] uppercase mb-4">
               Gift Message & Notes
             </h2>
-            <textarea
-              placeholder="Gift message (optional)"
+            <FormField
+              as="textarea"
+              id="checkout-gift"
+              label="Gift message"
               value={form.giftMessage}
-              onChange={(e) => update("giftMessage", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border focus:outline-none focus:border-champagne resize-none h-16 mb-3"
+              onChange={(v) => update("giftMessage", v)}
+              maxLength={GIFT_MAX}
+              showCount
+              rows={3}
+              className="mb-3"
             />
-            <textarea
-              placeholder="Order notes (optional)"
+            <FormField
+              as="textarea"
+              id="checkout-notes"
+              label="Order notes"
               value={form.orderNotes}
-              onChange={(e) => update("orderNotes", e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border focus:outline-none focus:border-champagne resize-none h-16"
+              onChange={(v) => update("orderNotes", v)}
+              maxLength={NOTES_MAX}
+              showCount
+              rows={3}
             />
           </section>
         </div>
 
-        <div className="bg-white border border-border p-6 h-fit sticky top-24">
+        <div className="bg-white border border-border p-4 sm:p-6 h-fit lg:sticky lg:top-24">
           <h2 className="text-xs tracking-[0.15em] uppercase mb-4">
             Your Order
           </h2>
@@ -445,21 +706,64 @@ export function CheckoutPageClient() {
           </div>
 
           {error && (
-            <p className="text-xs text-crimson mb-4 leading-relaxed">{error}</p>
+            <p className="text-xs text-crimson mb-4 leading-relaxed" role="alert">
+              {error}
+            </p>
           )}
 
           <button
             type="submit"
-            disabled={processing}
-            className="w-full py-4 bg-noir text-white text-xs tracking-[0.2em] uppercase hover:bg-charcoal transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={!canPay}
+            className={cn(
+              "hidden lg:flex w-full py-4 bg-noir text-white text-xs tracking-[0.2em] uppercase hover:bg-charcoal transition-colors disabled:opacity-50 items-center justify-center gap-2",
+              !canPay && "cursor-not-allowed"
+            )}
           >
             <Lock className="w-4 h-4" />
             {processing
               ? "Redirecting to Flutterwave…"
               : `Pay ${formatPrice(totalUsd)}`}
           </button>
+          {missingHint ? (
+            <p className="hidden lg:block text-xs text-muted text-center mt-2">
+              {missingHint}
+            </p>
+          ) : null}
         </div>
       </form>
+
+      {/* Mobile sticky pay — always reachable while scrolling the form */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-ivory/95 backdrop-blur border-t border-border px-4 pt-3 safe-pb">
+        {error ? (
+          <p className="text-xs text-crimson mb-2 leading-relaxed" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          disabled={!canPay}
+          onClick={() => {
+            const formEl = document.querySelector(
+              "form"
+            ) as HTMLFormElement | null;
+            formEl?.requestSubmit();
+          }}
+          className={cn(
+            "w-full min-h-12 py-3.5 bg-noir text-white text-xs tracking-[0.2em] uppercase disabled:opacity-50 flex items-center justify-center gap-2",
+            !canPay && "cursor-not-allowed"
+          )}
+        >
+          <Lock className="w-4 h-4" />
+          {processing
+            ? "Redirecting…"
+            : `Pay ${formatPrice(totalUsd)}`}
+        </button>
+        {missingHint ? (
+          <p className="text-[11px] text-muted text-center mt-2">{missingHint}</p>
+        ) : null}
+      </div>
+      </>
+      )}
     </div>
   );
 }

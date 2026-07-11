@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { allProducts } from "@/lib/data/products";
+import { useCatalog } from "@/lib/catalog-context";
 import { useFormatPrice } from "@/lib/currency-context";
 
 const TRENDING = [
@@ -27,6 +27,7 @@ export function SearchAutocomplete({ open, onClose }: SearchAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const formatPrice = useFormatPrice();
+  const { products: allProducts } = useCatalog();
 
   useEffect(() => {
     if (open) {
@@ -56,7 +57,7 @@ export function SearchAutocomplete({ open, onClose }: SearchAutocompleteProps) {
         return hay.includes(q) || q.split(/\s+/).every((word) => hay.includes(word));
       })
       .slice(0, 6);
-  }, [query]);
+  }, [query, allProducts]);
 
   if (!open) return null;
 
@@ -79,12 +80,12 @@ export function SearchAutocomplete({ open, onClose }: SearchAutocompleteProps) {
             if (e.key === "Escape") onClose();
           }}
           placeholder="Search wigs, bundles, frontals..."
-          className="w-full pl-11 pr-10 py-3 bg-white border border-border text-sm focus:outline-none focus:border-champagne transition-colors"
+          className="w-full pl-11 pr-12 py-3.5 bg-white border border-border text-base md:text-sm focus:outline-none focus:border-champagne transition-colors"
         />
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 p-1 text-muted hover:text-noir"
+          className="absolute right-2 top-1/2 -translate-y-1/2 touch-target inline-flex items-center justify-center p-2 text-muted hover:text-noir"
           aria-label="Close search"
         >
           <X className="w-4 h-4" />
@@ -100,7 +101,7 @@ export function SearchAutocomplete({ open, onClose }: SearchAutocompleteProps) {
                     key={term}
                     type="button"
                     onClick={() => goToSearch(term)}
-                    className="px-3 py-1.5 text-xs border border-border hover:border-champagne hover:text-champagne-dark transition-colors"
+                    className="min-h-11 px-3 py-2.5 text-xs border border-border hover:border-champagne hover:text-champagne-dark transition-colors"
                   >
                     {term}
                   </button>

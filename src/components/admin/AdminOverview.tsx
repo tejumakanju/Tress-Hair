@@ -1,6 +1,6 @@
 "use client";
 
-import { allProducts } from "@/lib/data/products";
+import { useCatalog } from "@/lib/catalog-context";
 import { useCart } from "@/lib/cart-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { Package, ShoppingCart, DollarSign, TrendingUp, AlertTriangle, Users } from "lucide-react";
@@ -8,6 +8,7 @@ import { Package, ShoppingCart, DollarSign, TrendingUp, AlertTriangle, Users } f
 export function AdminOverview() {
   const { orders } = useCart();
   const formatPrice = useFormatPrice();
+  const { products: allProducts } = useCatalog();
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const ordersToday = orders.filter((o) => new Date(o.date).toDateString() === new Date().toDateString()).length;

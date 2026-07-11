@@ -3,11 +3,48 @@
  * Regenerate after schema changes:
  *   npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/types/database.ts
  */
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          email: string;
+          first_name: string | null;
+          last_name: string | null;
+          phone: string | null;
+          avatar_url: string | null;
+          accepts_marketing: boolean;
+          loyalty_points: number;
+          store_credit_cents: number;
+          referral_code: string | null;
+          referred_by: string | null;
+          is_blacklisted: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          email: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          phone?: string | null;
+        };
+        Update: {
+          email?: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          phone?: string | null;
+        };
+      };
       products: {
         Row: {
           id: string;
@@ -32,10 +69,21 @@ export type Database = {
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
       };
+      wishlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          is_default: boolean;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
     };
     Views: {
       storefront_products: {
         Row: Record<string, unknown>;
+        Relationships: [];
       };
     };
     Functions: {

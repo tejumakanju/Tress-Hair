@@ -1,18 +1,24 @@
 import { notFound } from "next/navigation";
-import { getProductBySlug, allProducts } from "@/lib/data/products";
+import {
+  getCachedProductBySlug,
+  getCachedProductSlugs,
+} from "@/lib/data/catalog";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return allProducts.map((p) => ({ slug: p.slug }));
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  const slugs = await getCachedProductSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getCachedProductBySlug(slug);
   if (!product) notFound();
   return <ProductDetailClient product={product} />;
 }

@@ -4,7 +4,8 @@ import {
   resolveChargeCurrency,
   siteUrl,
 } from "@/lib/flutterwave";
-import { FALLBACK_RATES, type CurrencyCode } from "@/lib/currency";
+import { UserErrorCode } from "@/lib/user-errors";
+import { getCachedRates, rateFor } from "@/lib/rates";
 
 export const runtime = "nodejs";
 
@@ -20,22 +21,20 @@ type InitBody = {
   meta?: Record<string, string>;
 };
 
+function errorResponse(code: typeof UserErrorCode[keyof typeof UserErrorCode], status: number) {
+  return NextResponse.json({ code, error: code }, { status });
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as InitBody;
 
     if (!body.txRef || !body.email || !body.name) {
-      return NextResponse.json(
-        { error: "txRef, email, and name are required" },
-        { status: 400 }
-      );
+      return errorResponse(UserErrorCode.PAYMENT_INVALID_REQUEST, 400);
     }
 
     if (!(body.amountUsd > 0)) {
-      return NextResponse.json(
-        { error: "A valid amount is required" },
-        { status: 400 }
-      );
+      return errorResponse(UserErrorCode.PAYMENT_INVALID_REQUEST, 400);
     }
 
     const requested = (body.currency || "NGN").toUpperCase();
@@ -49,19 +48,15 @@ export async function POST(req: Request) {
     ) {
       amount = body.amount;
     } else {
-      const rate =
-        FALLBACK_RATES[currency as CurrencyCode] ?? FALLBACK_RATES.NGN;
-      amount = body.amountUsd * rate;
+      const ratesPayload = await getCachedRates();
+      amount = body.amountUsd * rateFor(ratesPayload.rates, currency);
     }
 
     const chargeAmount =
       currency === "NGN" ? Math.round(amount) : Math.round(amount * 100) / 100;
 
     if (chargeAmount <= 0) {
-      return NextResponse.json(
-        { error: "Invalid charge amount" },
-        { status: 400 }
-      );
+      return errorResponse(UserErrorCode.PAYMENT_INVALID_REQUEST, 400);
     }
 
     const result = await initializeFlutterwavePayment({
@@ -89,6 +84,6 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Payment init failed";
     console.error("[flutterwave/initialize]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(UserErrorCode.PAYMENT_INIT_FAILED, 500);
   }
 }

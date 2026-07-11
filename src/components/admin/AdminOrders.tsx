@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { getShippingMethod } from "@/lib/shipping";
+import { EmptyState } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
 import type { Order } from "@/types/product";
+import { Package } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-50 text-yellow-700",
@@ -74,7 +76,17 @@ export function AdminOrders() {
             </thead>
             <tbody>
               {orders.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-muted">No orders yet. Place a test order from the storefront.</td></tr>
+                <tr>
+                  <td colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Package}
+                      title="No orders yet"
+                      description="Place a test order from the storefront to see it here."
+                      action={{ label: "Open shop", href: "/shop" }}
+                      className="py-12"
+                    />
+                  </td>
+                </tr>
               ) : (
                 orders.map((order) => (
                   <tr

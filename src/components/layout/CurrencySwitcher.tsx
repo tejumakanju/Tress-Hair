@@ -1,12 +1,23 @@
 "use client";
 
 import { useCurrency, CURRENCIES } from "@/lib/currency-context";
+import { getUserError, UserErrorCode } from "@/lib/user-errors";
 
 export function CurrencySwitcher() {
-  const { currency, setCurrency, selectable, countryCode, ready } = useCurrency();
+  const { currency, setCurrency, selectable, countryCode, ready, ratesLive } =
+    useCurrency();
+
+  const ratesNote = getUserError(UserErrorCode.RATES_OFFLINE).inline;
+
+  const title = [
+    countryCode ? `Detected: ${countryCode}` : null,
+    ratesLive ? "Live FX rates" : ratesNote,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="flex items-center gap-1" title={countryCode ? `Detected: ${countryCode}` : "Currency"}>
+    <div className="flex items-center gap-1" title={title}>
       <select
         aria-label="Currency"
         value={currency}
@@ -19,9 +30,8 @@ export function CurrencySwitcher() {
           </option>
         ))}
       </select>
-      {!ready && (
-        <span className="sr-only">Detecting location…</span>
-      )}
+      {!ready && <span className="sr-only">Detecting location…</span>}
+      {ready && !ratesLive && <span className="sr-only">{ratesNote}</span>}
       <span className="hidden lg:inline text-[9px] text-muted tracking-wide">
         {CURRENCIES[currency].code}
       </span>

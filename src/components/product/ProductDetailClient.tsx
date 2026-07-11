@@ -23,10 +23,12 @@ import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { useToast } from "@/lib/toast-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { cn } from "@/lib/utils";
+import { UserCopy } from "@/lib/user-errors";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/states";
 import { ProductCard } from "@/components/product/ProductCard";
 import { RecentlyViewed } from "@/components/product/RecentlyViewed";
-import { getProductBySlug } from "@/lib/data/products";
+import { useCatalog } from "@/lib/catalog-context";
 
 type ProductDetailClientProps = {
   product: Product;
@@ -34,6 +36,7 @@ type ProductDetailClientProps = {
 
 export function ProductDetailClient({ product }: ProductDetailClientProps) {
   const router = useRouter();
+  const { getBySlug } = useCatalog();
   const { addItem } = useCart();
   const { isWishlisted, toggle } = useWishlist();
   const { track } = useRecentlyViewed();
@@ -67,7 +70,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
 
   const price = selectedVariant?.price ?? product.price;
   const related = product.relatedSlugs
-    .map((slug) => getProductBySlug(slug))
+    .map((slug) => getBySlug(slug))
     .filter(Boolean) as Product[];
 
   const handleAddToCart = (openDrawer = true) => {
@@ -90,7 +93,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
       { openDrawer }
     );
     setAdded(true);
-    toast(`Added ${product.name}`);
+    toast(UserCopy.ADDED_TO_BAG(product.name));
     setTimeout(() => setAdded(false), 2000);
   };
 
@@ -101,7 +104,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
 
   const handleWishlist = () => {
     const addedWish = toggle(product.id);
-    toast(addedWish ? "Saved to wishlist" : "Removed from wishlist");
+    toast(addedWish ? UserCopy.WISHLIST_SAVED : UserCopy.WISHLIST_REMOVED);
   };
 
   const handleShare = async () => {
@@ -111,7 +114,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         await navigator.share({ title: product.name, url });
       } else {
         await navigator.clipboard.writeText(url);
-        toast("Link copied");
+        toast(UserCopy.LINK_COPIED);
       }
     } catch {
       /* cancelled */
@@ -218,18 +221,18 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             <div>
               <span className="text-xs tracking-[0.15em] uppercase block mb-2">Quantity</span>
               <div className="inline-flex items-center border border-border">
-                <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-3 hover:bg-cream">
-                  <Minus className="w-3 h-3" />
+                <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="touch-target inline-flex items-center justify-center p-3 hover:bg-cream" aria-label="Decrease quantity">
+                  <Minus className="w-3.5 h-3.5" />
                 </button>
                 <span className="px-4 text-sm min-w-[40px] text-center">{quantity}</span>
-                <button type="button" onClick={() => setQuantity(quantity + 1)} className="p-3 hover:bg-cream">
-                  <Plus className="w-3 h-3" />
+                <button type="button" onClick={() => setQuantity(quantity + 1)} className="touch-target inline-flex items-center justify-center p-3 hover:bg-cream" aria-label="Increase quantity">
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="hidden sm:flex flex-col sm:flex-row gap-3 mt-8">
+          <div className="hidden lg:flex flex-col sm:flex-row gap-3 mt-8">
             <Button onClick={() => handleAddToCart(true)} variant="primary" size="lg" className="flex-1" disabled={!product.inStock}>
               {added ? "Added to Bag ✓" : "Add to Bag"}
             </Button>
@@ -310,7 +313,11 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
           {activeTab === "reviews" && (
             <div className="space-y-6">
               {product.reviews.length === 0 ? (
-                <p className="text-muted text-sm">No reviews yet. Be the first!</p>
+                <EmptyState
+                  title="No reviews yet"
+                  description="Be the first to share how this piece wears and styles."
+                  className="py-10"
+                />
               ) : (
                 product.reviews.map((review) => (
                   <div key={review.id} className="border-b border-border pb-6">
@@ -337,14 +344,24 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
 
       <RecentlyViewed excludeSlug={product.slug} />
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-ivory/95 backdrop-blur border-t border-border p-3 flex gap-2">
-        <button type="button" onClick={handleWishlist} className={cn("p-3 border border-border", wishlisted && "border-crimson text-crimson")} aria-label="Wishlist">
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-ivory/95 backdrop-blur border-t border-border px-3 pt-3 flex gap-2 safe-pb">
+        <button
+          type="button"
+          onClick={handleWishlist}
+          className={cn(
+            "touch-target inline-flex items-center justify-center p-3 border border-border",
+            wishlisted && "border-crimson text-crimson"
+          )}
+          aria-label="Wishlist"
+        >
           <Heart className={cn("w-5 h-5", wishlisted && "fill-crimson")} strokeWidth={1.5} />
         </button>
         <Button onClick={() => handleAddToCart(true)} variant="primary" size="md" className="flex-1" disabled={!product.inStock}>
           {added ? "Added ✓" : `Add · ${formatPrice(price)}`}
         </Button>
-        <Button onClick={handleBuyNow} variant="secondary" size="md" disabled={!product.inStock}>Buy</Button>
+        <Button onClick={handleBuyNow} variant="secondary" size="md" disabled={!product.inStock}>
+          Buy
+        </Button>
       </div>
 
       {zoomOpen && (
@@ -379,7 +396,7 @@ function VariantSelector({
             type="button"
             onClick={() => onChange(opt)}
             className={cn(
-              "px-3 py-2 text-xs border transition-colors",
+              "min-h-11 px-3.5 py-2.5 text-xs border transition-colors",
               value === opt ? "border-noir bg-noir text-white" : "border-border hover:border-champagne"
             )}
           >

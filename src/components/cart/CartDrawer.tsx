@@ -6,10 +6,12 @@ import { Minus, Plus, Trash2, X } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { Button } from "@/components/ui/Button";
-import { allProducts } from "@/lib/data/products";
+import { EmptyState } from "@/components/ui/states";
+import { useCatalog } from "@/lib/catalog-context";
 import { shippingCostUsd } from "@/lib/shipping";
 
 export function CartDrawer() {
+  const { products: allProducts } = useCatalog();
   const {
     items,
     isCartOpen,
@@ -36,7 +38,7 @@ export function CartDrawer() {
   return (
     <div className="fixed inset-0 z-[60]">
       <div className="absolute inset-0 bg-noir/40" onClick={closeCart} />
-      <aside className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-ivory shadow-2xl flex flex-col animate-slide-in-right">
+      <aside className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-ivory shadow-2xl flex flex-col animate-slide-in-right safe-pt">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
             <h2 className="font-serif text-lg tracking-[0.1em] uppercase">Your Bag</h2>
@@ -46,7 +48,12 @@ export function CartDrawer() {
               </p>
             )}
           </div>
-          <button type="button" onClick={closeCart} aria-label="Close cart" className="p-2 hover:text-champagne-dark">
+          <button
+            type="button"
+            onClick={closeCart}
+            aria-label="Close cart"
+            className="touch-target inline-flex items-center justify-center p-2 hover:text-champagne-dark"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -59,12 +66,12 @@ export function CartDrawer() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {items.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm text-muted mb-6">Your bag is empty</p>
-              <Button href="/shop" variant="outline" size="md" onClick={closeCart}>
-                Continue Shopping
-              </Button>
-            </div>
+            <EmptyState
+              title="Your bag is empty"
+              description="Add a piece you love and it will show up here."
+              action={{ label: "Continue Shopping", href: "/shop", onClick: closeCart }}
+              className="py-12"
+            />
           ) : (
             items.map((item) => (
               <div key={item.variantId} className="flex gap-3">
@@ -128,7 +135,7 @@ export function CartDrawer() {
         </div>
 
         {items.length > 0 && (
-          <div className="border-t border-border p-4 space-y-3 bg-white">
+          <div className="border-t border-border p-4 space-y-3 bg-white safe-pb">
             <div className="flex justify-between text-sm">
               <span className="text-muted">Subtotal</span>
               <span>{formatPrice(subtotal)}</span>

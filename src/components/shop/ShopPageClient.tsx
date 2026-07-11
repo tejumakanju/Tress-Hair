@@ -3,13 +3,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Grid3X3, LayoutList, SlidersHorizontal } from "lucide-react";
-import { allProducts } from "@/lib/data/products";
+import { useCatalog } from "@/lib/catalog-context";
 import { sortOptions, resolveShopPath } from "@/lib/constants/filters";
 import { filterProducts, sortProducts, parseFiltersFromSearchParams } from "@/lib/shop-utils";
 import { ShopFiltersPanel } from "@/components/shop/ShopFilters";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductListItem } from "@/components/shop/ProductListItem";
 import type { ShopFilters, SortOption } from "@/types/product";
+import { EmptyState } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
 
 type ShopPageClientProps = {
@@ -17,6 +18,7 @@ type ShopPageClientProps = {
 };
 
 export function ShopPageClient({ pathSegments = [] }: ShopPageClientProps) {
+  const { products: allProducts } = useCatalog();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -38,7 +40,7 @@ export function ShopPageClient({ pathSegments = [] }: ShopPageClientProps) {
 
   const filtered = useMemo(
     () => sortProducts(filterProducts(allProducts, filters), sort),
-    [filters, sort]
+    [allProducts, filters, sort]
   );
 
   const visible = filtered.slice(0, visibleCount);
@@ -156,9 +158,12 @@ export function ShopPageClient({ pathSegments = [] }: ShopPageClientProps) {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-muted">No products match your filters.</p>
-            </div>
+            <EmptyState
+              title="No matches"
+              description="No products match your filters. Clear filters or browse the full shop."
+              action={{ label: "View all", href: "/shop" }}
+              className="py-20"
+            />
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {visible.map((product) => (
@@ -188,9 +193,19 @@ export function ShopPageClient({ pathSegments = [] }: ShopPageClientProps) {
       </div>
 
       {mobileFiltersOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
           <div className="absolute inset-0 bg-noir/40" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-ivory overflow-y-auto p-6">
+          <div className="absolute right-0 top-0 bottom-0 w-[min(100%,22rem)] bg-ivory overflow-y-auto overscroll-contain p-5 sm:p-6 safe-pt safe-pb">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-serif text-lg tracking-[0.12em] uppercase">Filters</h2>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="touch-target inline-flex items-center justify-center text-xs tracking-[0.15em] uppercase text-muted"
+              >
+                Close
+              </button>
+            </div>
             <ShopFiltersPanel
               filters={filters}
               onChange={(f) => {

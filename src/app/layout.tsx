@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { Header } from "@/components/layout/Header";
@@ -10,6 +10,10 @@ import { WishlistProvider } from "@/lib/wishlist-context";
 import { RecentlyViewedProvider } from "@/lib/recently-viewed-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { CurrencyProvider } from "@/lib/currency-context";
+import { CatalogProvider } from "@/lib/catalog-context";
+import { AuthProvider } from "@/lib/auth-context";
+import { getCachedCatalog } from "@/lib/data/catalog";
+import { getAuthProfile, getAuthUser } from "@/lib/auth";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -35,31 +39,63 @@ export const metadata: Metadata = {
     "glueless wigs",
     "Tressé Hair",
   ],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Tressé Hair",
+  },
+  formatDetection: {
+    telephone: true,
+    email: true,
+  },
 };
 
-export default function RootLayout({
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf9f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [products, initialUser, initialProfile] = await Promise.all([
+    getCachedCatalog(),
+    getAuthUser(),
+    getAuthProfile(),
+  ]);
+
   return (
     <html lang="en" className={`${playfair.variable} ${dmSans.variable} h-full`}>
       <body className="min-h-full flex flex-col font-sans antialiased">
         <ToastProvider>
-          <CurrencyProvider>
-            <CartProvider>
-              <WishlistProvider>
-                <RecentlyViewedProvider>
-                  <AnnouncementBar />
-                  <Header />
-                  <main className="flex-1">{children}</main>
-                  <Footer />
-                  <CartDrawer />
-                  <ToastViewport />
-                </RecentlyViewedProvider>
-              </WishlistProvider>
-            </CartProvider>
-          </CurrencyProvider>
+          <AuthProvider
+            initialUser={initialUser}
+            initialProfile={initialProfile}
+          >
+            <CurrencyProvider>
+              <CatalogProvider products={products}>
+                <CartProvider>
+                  <WishlistProvider>
+                    <RecentlyViewedProvider>
+                      <AnnouncementBar />
+                      <Header />
+                      <main className="flex-1">{children}</main>
+                      <Footer />
+                      <CartDrawer />
+                      <ToastViewport />
+                    </RecentlyViewedProvider>
+                  </WishlistProvider>
+                </CartProvider>
+              </CatalogProvider>
+            </CurrencyProvider>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

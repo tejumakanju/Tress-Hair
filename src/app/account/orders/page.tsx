@@ -1,29 +1,35 @@
 "use client";
 
 import Link from "next/link";
+import { Package } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { getShippingMethod } from "@/lib/shipping";
-import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/states";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AccountOrdersPage() {
   const { orders } = useCart();
   const formatPrice = useFormatPrice();
+  const { user } = useAuth();
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16">
       <h1 className="font-serif text-3xl tracking-[0.15em] uppercase mb-4">Your Orders</h1>
       <p className="text-muted text-sm mb-10">
-        Orders from this device. Full account sync coming soon.
+        {user
+          ? "Orders saved on this device. New purchases stay linked while you’re signed in."
+          : "Orders from this device. Sign in to keep them across devices soon."}
       </p>
 
       {orders.length === 0 ? (
-        <div className="text-center py-12 border border-border bg-white">
-          <p className="text-sm text-muted mb-6">No orders yet.</p>
-          <Button href="/shop" variant="primary" size="md">
-            Shop Now
-          </Button>
-        </div>
+        <EmptyState
+          icon={Package}
+          title="No orders yet"
+          description="When you complete a purchase, your orders and tracking will appear here."
+          action={{ label: "Shop Now", href: "/shop" }}
+          className="py-12 border border-border bg-white"
+        />
       ) : (
         <div className="space-y-4">
           {orders.map((order) => {

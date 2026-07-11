@@ -4,9 +4,11 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Trash2, Bookmark, Tag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/states";
 import { shippingCostUsd } from "@/lib/shipping";
 
 export function CartPageClient() {
@@ -35,10 +37,13 @@ export function CartPageClient() {
 
   if (items.length === 0 && savedForLater.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <h1 className="font-serif text-3xl tracking-[0.15em] uppercase mb-4">Your Cart</h1>
-        <p className="text-muted mb-8">Your cart is empty. Time to treat yourself!</p>
-        <Button href="/shop" variant="primary" size="lg">Continue Shopping</Button>
+      <div className="max-w-2xl mx-auto px-4">
+        <EmptyState
+          icon={ShoppingBag}
+          title="Your cart is empty"
+          description="Time to treat yourself — browse wigs, bundles, and frontals."
+          action={{ label: "Continue Shopping", href: "/shop" }}
+        />
       </div>
     );
   }

@@ -16,14 +16,24 @@ import {
   formatMoney,
   type CurrencyCode,
 } from "@/lib/currency";
+import { RATES_CLIENT_TTL_MS } from "@/lib/rates-shared";
 
 const STORAGE_KEY = "tresse-currency";
+const RATES_STORAGE_KEY = "tresse-fx-rates";
+
+type CachedRatesBlob = {
+  rates: Record<CurrencyCode, number>;
+  live: boolean;
+  fetchedAt: number;
+};
 
 type CurrencyContextType = {
   currency: CurrencyCode;
   countryCode: string | null;
   rate: number;
   ready: boolean;
+  /** False when using offline FALLBACK_RATES only */
+  ratesLive: boolean;
   setCurrency: (code: CurrencyCode) => void;
   formatPrice: (amountUsd: number) => string;
   selectable: CurrencyCode[];
@@ -53,24 +63,56 @@ async function detectCountry(): Promise<string | null> {
   }
 }
 
-async function fetchRates(): Promise<Partial<Record<CurrencyCode, number>>> {
+function readRatesCache(): CachedRatesBlob | null {
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
-      signal: AbortSignal.timeout(5000),
+    const raw = localStorage.getItem(RATES_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedRatesBlob;
+    if (!parsed?.rates || !parsed.fetchedAt) return null;
+    if (Date.now() - parsed.fetchedAt > RATES_CLIENT_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeRatesCache(blob: CachedRatesBlob) {
+  try {
+    localStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(blob));
+  } catch {
+    // quota / private mode
+  }
+}
+
+async function fetchRates(): Promise<{
+  rates: Partial<Record<CurrencyCode, number>>;
+  live: boolean;
+}> {
+  const cached = readRatesCache();
+  if (cached) {
+    return { rates: cached.rates, live: cached.live };
+  }
+
+  try {
+    const res = await fetch("/api/rates", {
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error("rate fetch failed");
     const data = (await res.json()) as {
-      result?: string;
-      rates?: Record<string, number>;
+      rates?: Record<CurrencyCode, number>;
+      live?: boolean;
     };
-    if (data.result !== "success" || !data.rates) throw new Error("bad rates");
-    const next: Partial<Record<CurrencyCode, number>> = { USD: 1 };
-    (Object.keys(FALLBACK_RATES) as CurrencyCode[]).forEach((code) => {
-      if (data.rates?.[code]) next[code] = data.rates[code];
+    if (!data.rates) throw new Error("bad rates");
+
+    const rates = { ...FALLBACK_RATES, ...data.rates };
+    writeRatesCache({
+      rates,
+      live: Boolean(data.live),
+      fetchedAt: Date.now(),
     });
-    return next;
+    return { rates, live: Boolean(data.live) };
   } catch {
-    return { ...FALLBACK_RATES };
+    return { rates: { ...FALLBACK_RATES }, live: false };
   }
 }
 
@@ -81,18 +123,19 @@ function currencyFromLocale(): CurrencyCode {
   if (lang.startsWith("en-GB")) return "GBP";
   if (lang.startsWith("en-CA")) return "CAD";
   if (lang.startsWith("en-AU")) return "AUD";
-  if (lang.startsWith("fr") || lang.startsWith("de") || lang.startsWith("es")) return "EUR";
+  if (lang.startsWith("fr") || lang.startsWith("de") || lang.startsWith("es"))
+    return "EUR";
   if (lang.startsWith("en-US")) return "USD";
-  // Default for Tressé (Nigeria-based brand) when unknown
   return "NGN";
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<CurrencyCode>("NGN");
   const [countryCode, setCountryCode] = useState<string | null>(null);
-  const [rates, setRates] = useState<Record<CurrencyCode, number>>(FALLBACK_RATES);
+  const [rates, setRates] =
+    useState<Record<CurrencyCode, number>>(FALLBACK_RATES);
   const [ready, setReady] = useState(false);
-  const [manual, setManual] = useState(false);
+  const [ratesLive, setRatesLive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,13 +144,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem(STORAGE_KEY) as CurrencyCode | null;
       const hasManual = stored && stored in FALLBACK_RATES;
 
-      const [country, liveRates] = await Promise.all([detectCountry(), fetchRates()]);
+      const [country, rateResult] = await Promise.all([
+        detectCountry(),
+        fetchRates(),
+      ]);
       if (cancelled) return;
 
-      setRates({ ...FALLBACK_RATES, ...liveRates });
+      setRates({ ...FALLBACK_RATES, ...rateResult.rates });
+      setRatesLive(rateResult.live);
 
       if (hasManual) {
-        setManual(true);
         setCurrencyState(stored);
       } else if (country && COUNTRY_CURRENCY[country]) {
         setCountryCode(country);
@@ -129,7 +175,6 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setCurrency = useCallback((code: CurrencyCode) => {
-    setManual(true);
     setCurrencyState(code);
     localStorage.setItem(STORAGE_KEY, code);
   }, []);
@@ -147,11 +192,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       countryCode,
       rate,
       ready,
+      ratesLive,
       setCurrency,
       formatPrice,
       selectable: SELECTABLE_CURRENCIES,
     }),
-    [currency, countryCode, rate, ready, setCurrency, formatPrice]
+    [currency, countryCode, rate, ready, ratesLive, setCurrency, formatPrice]
   );
 
   return (

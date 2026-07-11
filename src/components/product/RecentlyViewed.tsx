@@ -2,8 +2,7 @@
 
 import { ProductCard } from "@/components/product/ProductCard";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
-import { getProductBySlug } from "@/lib/data/products";
-import type { Product } from "@/types/product";
+import { useCatalog } from "@/lib/catalog-context";
 
 type RecentlyViewedProps = {
   excludeSlug?: string;
@@ -11,10 +10,11 @@ type RecentlyViewedProps = {
 
 export function RecentlyViewed({ excludeSlug }: RecentlyViewedProps) {
   const { slugs } = useRecentlyViewed();
+  const { getBySlug } = useCatalog();
   const products = slugs
     .filter((s) => s !== excludeSlug)
-    .map((s) => getProductBySlug(s))
-    .filter(Boolean) as Product[];
+    .map((s) => getBySlug(s))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
   if (products.length === 0) return null;
 

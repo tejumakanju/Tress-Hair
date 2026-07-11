@@ -25,9 +25,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "px-4 py-2 text-xs tracking-widest",
-  md: "px-6 py-3 text-xs tracking-[0.2em]",
-  lg: "px-8 py-4 text-sm tracking-[0.25em]",
+  sm: "min-h-11 px-4 py-2.5 text-xs tracking-widest",
+  md: "min-h-12 px-6 py-3 text-xs tracking-[0.2em]",
+  lg: "min-h-12 md:min-h-14 px-6 md:px-8 py-3.5 md:py-4 text-sm tracking-[0.25em]",
 };
 
 export function Button({

@@ -2,17 +2,24 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, XCircle } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import {
   clearPendingCheckout,
   loadPendingCheckout,
 } from "@/lib/pending-checkout";
 import { suggestedCourier } from "@/lib/shipping";
-import { Button } from "@/components/ui/Button";
+import { ErrorState, LoadingState } from "@/components/ui/states";
+import {
+  getUserError,
+  resolveApiErrorCode,
+  UserCopy,
+  UserErrorCode,
+  type UserError,
+} from "@/lib/user-errors";
 
 type VerifyResponse = {
   paid?: boolean;
+  code?: string;
   error?: string;
   txRef?: string;
   amount?: number;
@@ -23,7 +30,7 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { placeOrder } = useCart();
-  const [error, setError] = useState<string | null>(null);
+  const [userError, setUserError] = useState<UserError | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,23 +41,23 @@ function CallbackContent() {
       const transactionId = searchParams.get("transaction_id");
 
       if (status === "cancelled" || status === "failed") {
-        setError("Payment was cancelled or failed. You can try again from checkout.");
+        setUserError(getUserError(UserErrorCode.PAYMENT_CANCELLED));
         return;
       }
 
       const pending = loadPendingCheckout();
       if (!pending) {
-        setError("We couldn’t find your checkout session. Please place the order again.");
+        setUserError(getUserError(UserErrorCode.PAYMENT_SESSION_EXPIRED));
         return;
       }
 
       if (txRef && pending.txRef !== txRef) {
-        setError("Payment reference mismatch. Please contact support if you were charged.");
+        setUserError(getUserError(UserErrorCode.PAYMENT_REF_MISMATCH));
         return;
       }
 
       if (!transactionId) {
-        setError("Missing transaction ID from Flutterwave. Please contact support if you were charged.");
+        setUserError(getUserError(UserErrorCode.PAYMENT_MISSING_TX));
         return;
       }
 
@@ -67,9 +74,10 @@ function CallbackContent() {
         if (cancelled) return;
 
         if (!res.ok || !data.paid) {
-          setError(
-            data.error ||
-              "We couldn’t verify your payment. If you were charged, contact support with your receipt."
+          setUserError(
+            getUserError(
+              resolveApiErrorCode(data, UserErrorCode.PAYMENT_NOT_CONFIRMED)
+            )
           );
           return;
         }
@@ -90,9 +98,15 @@ function CallbackContent() {
 
         clearPendingCheckout();
         router.replace(`/checkout/confirmation?order=${order.id}`);
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setError("Something went wrong verifying payment. Please try again.");
+          const code =
+            typeof navigator !== "undefined" && !navigator.onLine
+              ? UserErrorCode.OFFLINE
+              : err instanceof TypeError
+                ? UserErrorCode.PAYMENT_VERIFY_NETWORK
+                : UserErrorCode.PAYMENT_VERIFY_FAILED;
+          setUserError(getUserError(code));
         }
       }
     }
@@ -103,46 +117,39 @@ function CallbackContent() {
     };
   }, [searchParams, placeOrder, router]);
 
-  if (error) {
+  if (userError) {
     return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <XCircle className="w-14 h-14 text-crimson mx-auto mb-6" strokeWidth={1} />
-        <h1 className="font-serif text-2xl tracking-[0.12em] uppercase mb-3">
-          Payment not confirmed
-        </h1>
-        <p className="text-sm text-muted mb-8">{error}</p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button href="/checkout" variant="primary" size="lg">
-            Back to checkout
-          </Button>
-          <Button href="/cart" variant="outline" size="lg">
-            View cart
-          </Button>
-        </div>
-      </div>
+      <ErrorState
+        title={userError.title}
+        description={userError.description}
+        action={
+          userError.action?.href
+            ? {
+                label: userError.action.label,
+                href: userError.action.href,
+              }
+            : userError.action
+              ? { label: userError.action.label, href: "/checkout" }
+              : { label: "Back to checkout", href: "/checkout" }
+        }
+        secondaryAction={
+          userError.secondaryAction?.href
+            ? {
+                label: userError.secondaryAction.label,
+                href: userError.secondaryAction.href,
+              }
+            : undefined
+        }
+      />
     );
   }
 
-  return (
-    <div className="max-w-md mx-auto px-4 py-20 text-center">
-      <Loader2 className="w-10 h-10 text-champagne mx-auto mb-6 animate-spin" strokeWidth={1.5} />
-      <h1 className="font-serif text-2xl tracking-[0.12em] uppercase mb-3">
-        Confirming payment
-      </h1>
-      <p className="text-sm text-muted">
-        Please wait while we verify your Flutterwave payment…
-      </p>
-    </div>
-  );
+  return <LoadingState label={UserCopy.PAYMENT_CONFIRMING} />;
 }
 
 export default function CheckoutCallbackPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="py-20 text-center text-muted text-sm">Loading…</div>
-      }
-    >
+    <Suspense fallback={<LoadingState label="Loading…" />}>
       <CallbackContent />
     </Suspense>
   );

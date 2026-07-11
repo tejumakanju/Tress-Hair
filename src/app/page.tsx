@@ -9,14 +9,20 @@ import { TrustBadges } from "@/components/home/TrustBadges";
 import { SocialFeed } from "@/components/home/SocialFeed";
 import { Newsletter } from "@/components/home/Newsletter";
 import { RecentlyViewed } from "@/components/product/RecentlyViewed";
+import { collections, testimonials } from "@/lib/data/products";
 import {
-  featuredProducts,
-  newArrivals,
-  collections,
-  testimonials,
-} from "@/lib/data/products";
+  getCachedCatalog,
+  getFeaturedFromCatalog,
+  getNewArrivalsFromCatalog,
+} from "@/lib/data/catalog";
 
-export default function Home() {
+export const revalidate = 60;
+
+export default async function Home() {
+  const catalog = await getCachedCatalog();
+  const featuredProducts = getFeaturedFromCatalog(catalog);
+  const newArrivals = getNewArrivalsFromCatalog(catalog);
+
   return (
     <>
       <HeroBanner />

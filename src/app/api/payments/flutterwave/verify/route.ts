@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { verifyFlutterwaveTransaction } from "@/lib/flutterwave";
+import { UserErrorCode } from "@/lib/user-errors";
 
 export const runtime = "nodejs";
+
+function errorResponse(
+  code: (typeof UserErrorCode)[keyof typeof UserErrorCode],
+  status: number
+) {
+  return NextResponse.json({ code, error: code, paid: false }, { status });
+}
 
 export async function GET(req: Request) {
   try {
@@ -12,20 +20,15 @@ export async function GET(req: Request) {
     const expectedCurrency = searchParams.get("currency");
 
     if (!transactionId) {
-      return NextResponse.json(
-        { error: "transaction_id is required", paid: false },
-        { status: 400 }
-      );
+      return errorResponse(UserErrorCode.PAYMENT_MISSING_TX, 400);
     }
 
     const result = await verifyFlutterwaveTransaction(transactionId);
     const data = result.data;
 
     if (!data) {
-      return NextResponse.json(
-        { error: result.message || "No transaction data", paid: false },
-        { status: 400 }
-      );
+      console.error("[flutterwave/verify] no data:", result.message);
+      return errorResponse(UserErrorCode.PAYMENT_VERIFY_FAILED, 400);
     }
 
     const statusOk =
@@ -41,8 +44,26 @@ export async function GET(req: Request) {
 
     const paid = Boolean(statusOk && refOk && amountOk && currencyOk);
 
+    if (!paid) {
+      console.error("[flutterwave/verify] unpaid checks", {
+        statusOk,
+        refOk,
+        amountOk,
+        currencyOk,
+        status: data.status,
+      });
+      return NextResponse.json({
+        paid: false,
+        code: UserErrorCode.PAYMENT_NOT_CONFIRMED,
+        error: UserErrorCode.PAYMENT_NOT_CONFIRMED,
+        status: data.status,
+        txRef: data.tx_ref,
+        checks: { statusOk, refOk, amountOk, currencyOk },
+      });
+    }
+
     return NextResponse.json({
-      paid,
+      paid: true,
       status: data.status,
       txRef: data.tx_ref,
       flwRef: data.flw_ref,
@@ -56,6 +77,6 @@ export async function GET(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Verification failed";
     console.error("[flutterwave/verify]", message);
-    return NextResponse.json({ error: message, paid: false }, { status: 500 });
+    return errorResponse(UserErrorCode.PAYMENT_VERIFY_FAILED, 500);
   }
 }

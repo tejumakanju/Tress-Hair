@@ -8,6 +8,7 @@ import { useCart } from "@/lib/cart-context";
 import { useToast } from "@/lib/toast-context";
 import { useFormatPrice } from "@/lib/currency-context";
 import { cn } from "@/lib/utils";
+import { UserCopy } from "@/lib/user-errors";
 import { Button } from "@/components/ui/Button";
 
 type QuickAddModalProps = {
@@ -55,7 +56,7 @@ export function QuickAddModal({ product, open, onClose }: QuickAddModalProps) {
       capSize: product.capSizes.length ? capSize : undefined,
       sku: variant.sku,
     });
-    toast(`Added ${product.name}`);
+    toast(UserCopy.ADDED_TO_BAG(product.name));
     onClose();
   };
 

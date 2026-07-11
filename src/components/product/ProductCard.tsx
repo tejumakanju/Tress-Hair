@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useWishlist } from "@/lib/wishlist-context";
 import { useToast } from "@/lib/toast-context";
 import { useFormatPrice } from "@/lib/currency-context";
+import { UserCopy } from "@/lib/user-errors";
 import { QuickAddModal } from "@/components/product/QuickAddModal";
 
 const badgeStyles = {
@@ -34,7 +35,7 @@ export function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     const added = toggle(product.id);
-    toast(added ? "Saved to wishlist" : "Removed from wishlist");
+    toast(added ? UserCopy.WISHLIST_SAVED : UserCopy.WISHLIST_REMOVED);
   };
 
   return (
