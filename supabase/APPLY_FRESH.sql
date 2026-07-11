@@ -1,4 +1,23 @@
 ﻿-- =============================================================================
+-- TRESSÉ HAIR — ONE-SHOT fresh apply (reset + full schema)
+-- Paste this ENTIRE file into SQL Editor and Run once.
+-- =============================================================================
+
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON SCHEMA public TO postgres;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
+
+-- =============================================================================
 -- TRESSÃ‰ HAIR â€” Database Extensions & Custom Types
 -- Run in Supabase SQL Editor or via: supabase db push
 -- =============================================================================
@@ -1755,5 +1774,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
 
 -- >>> END 00009_grants.sql <<<
+
 
 

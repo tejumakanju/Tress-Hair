@@ -72,7 +72,7 @@ INSERT INTO products (
   rating_avg, review_count, sales_count, popularity_score,
   care_instructions, return_policy, published_at
 ) VALUES (
-  'p1000000-0000-0000-0000-000000000001',
+  'b1000000-0000-0000-0000-000000000001',
   (SELECT id FROM categories WHERE slug = 'glueless'),
   'HD Lace Glueless Body Wave Wig',
   'hd-lace-glueless-body-wave',
@@ -92,7 +92,7 @@ INSERT INTO product_specs (
   bleached_knots, pre_plucked, glueless, beginner_friendly, ready_to_wear,
   baby_hair, elastic_band, adjustable_strap, processing_time
 ) VALUES (
-  'p1000000-0000-0000-0000-000000000001',
+  'b1000000-0000-0000-0000-000000000001',
   'human_hair', 'vietnamese', 'body_wave', '100% Virgin Remy', 'Tressé Hair',
   'hd_lace', '13x6', 'Glueless with combs + elastic band',
   ARRAY['18"', '20"', '22"', '24"', '26"'],
@@ -105,15 +105,15 @@ INSERT INTO product_specs (
 ) ON CONFLICT (product_id) DO NOTHING;
 
 INSERT INTO product_variants (product_id, sku, length, density, color, cap_size, price_cents) VALUES
-  ('p1000000-0000-0000-0000-000000000001', 'TH-WIG-005-18-180-NB-M', '18"', '180%', 'Natural Black (#1B)', 'Medium (22")', 32000),
-  ('p1000000-0000-0000-0000-000000000001', 'TH-WIG-005-20-200-NB-M', '20"', '200%', 'Natural Black (#1B)', 'Medium (22")', 35500),
-  ('p1000000-0000-0000-0000-000000000001', 'TH-WIG-005-22-200-NB-L', '22"', '200%', 'Natural Black (#1B)', 'Large (23")', 39000)
+  ('b1000000-0000-0000-0000-000000000001', 'TH-WIG-005-18-180-NB-M', '18"', '180%', 'Natural Black (#1B)', 'Medium (22")', 32000),
+  ('b1000000-0000-0000-0000-000000000001', 'TH-WIG-005-20-200-NB-M', '20"', '200%', 'Natural Black (#1B)', 'Medium (22")', 35500),
+  ('b1000000-0000-0000-0000-000000000001', 'TH-WIG-005-22-200-NB-L', '22"', '200%', 'Natural Black (#1B)', 'Large (23")', 39000)
 ON CONFLICT (sku) DO NOTHING;
 
 INSERT INTO inventory_levels (variant_id, warehouse_id, quantity, low_stock_threshold)
 SELECT pv.id, 'a0000000-0000-0000-0000-000000000001', 25, 5
 FROM product_variants pv
-WHERE pv.product_id = 'p1000000-0000-0000-0000-000000000001'
+WHERE pv.product_id = 'b1000000-0000-0000-0000-000000000001'
 ON CONFLICT (variant_id, warehouse_id) DO NOTHING;
 
 -- Testimonials

@@ -70,6 +70,26 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
+-- Drop existing storage policies so re-runs don't fail / roll back the schema
+DROP POLICY IF EXISTS "Public read product images bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Staff upload product images" ON storage.objects;
+DROP POLICY IF EXISTS "Staff update product images" ON storage.objects;
+DROP POLICY IF EXISTS "Staff delete product images" ON storage.objects;
+DROP POLICY IF EXISTS "Public read product videos" ON storage.objects;
+DROP POLICY IF EXISTS "Staff manage product videos" ON storage.objects;
+DROP POLICY IF EXISTS "Public read review media" ON storage.objects;
+DROP POLICY IF EXISTS "Users upload review media" ON storage.objects;
+DROP POLICY IF EXISTS "Users delete own review media" ON storage.objects;
+DROP POLICY IF EXISTS "Public read avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Users upload own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users update own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users delete own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Public read blog images" ON storage.objects;
+DROP POLICY IF EXISTS "Staff manage cms images" ON storage.objects;
+DROP POLICY IF EXISTS "Staff read order documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users read own order documents" ON storage.objects;
+DROP POLICY IF EXISTS "Staff upload order documents" ON storage.objects;
+
 -- ---------------------------------------------------------------------------
 -- PRODUCT IMAGES — public read, staff write
 -- ---------------------------------------------------------------------------
